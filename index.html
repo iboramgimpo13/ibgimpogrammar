@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>고딸영어 문법</title>
+<title>아이보람 김포점 문법</title>
 <style>
 :root{--ink:#16233b;--bg:#f3f6fb;--card:#fff;--line:#d9e0ec;--acc:#2f6bff;--accT:#fff;--ok:#1f9d6b;--no:#d64550;--hl:#ffe58a;--mut:#667189}
 @media (prefers-color-scheme:dark){:root{--ink:#e8edf7;--bg:#10141d;--card:#1a2130;--line:#2e384d;--acc:#6c93ff;--accT:#0c1220;--ok:#4fd1a0;--no:#ff7b84;--hl:#5b4a12;--mut:#9aa6bf}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 "Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif}
-#app{max-width:760px;margin:0 auto;padding:12px 14px 60px}
+#app{max-width:1100px;margin:0 auto;padding:12px 14px 60px}
 .bar{display:flex;justify-content:space-between;align-items:center;padding:10px 2px;gap:8px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin:12px 0}
 .narrow{max-width:380px;margin:12vh auto}
@@ -37,13 +37,27 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
 tr.off{opacity:.5}.act button{margin-right:4px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
 .row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}@media(max-width:560px){.row{grid-template-columns:1fr}}
+.lay{display:grid;grid-template-columns:310px 1fr;gap:14px;align-items:start}
+.side{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:8px;max-height:calc(100vh - 80px);overflow:auto;position:sticky;top:8px}
+.un{width:100%;display:flex;justify-content:space-between;gap:8px;padding:11px 12px;margin-top:6px;border:0;border-radius:10px;background:var(--ink);color:var(--card);font-weight:700;text-align:left}
+.sub{display:flex;justify-content:space-between;gap:8px;width:100%;padding:8px 10px;border:0;border-radius:8px;background:none;text-align:left;font-size:14px}
+.sub.cur{background:var(--hl)}.sub b{color:var(--acc);white-space:nowrap}
+.vwrap{display:flex;flex-direction:column;background:#000;border-radius:10px;overflow:hidden}
+.vwrap iframe{width:100%;aspect-ratio:16/9;border:0}
+.vbar{display:flex;gap:8px;padding:8px;background:var(--card)}.vbar .btn{margin:0}
+.vwrap:fullscreen{border-radius:0}.vwrap:fullscreen iframe{flex:1;aspect-ratio:auto;min-height:0}
+.note{font-size:17px;line-height:2.5}.bl{display:inline-flex;align-items:center;gap:4px;margin:0 3px}
+.bl input{width:auto;margin:0;padding:3px 8px;text-align:center;border-bottom:2px solid var(--acc)}.bl input.good{border-color:var(--ok);color:var(--ok)}
+.hint{font-size:13px;padding:3px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg)}.hint:disabled{opacity:.5}
+.ans{color:var(--no);font-size:14px}
+@media(max-width:820px){.lay{grid-template-columns:1fr}.side{position:static;max-height:42vh}}
 </style>
 </head>
 <body>
 <div id="app"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.js"></script>
 <script>
-const SITE = "고딸영어 문법";
+const SITE = "아이보람 김포점 문법";
 const SB_URL = "https://anzdgisybvlxxusspfom.supabase.co";
 const SB_KEY = "sb_publishable_ZozBAhHUaGdxcQu9YGttUA_1-2IdGgE";
 const sb = supabase.createClient(SB_URL, SB_KEY);
@@ -92,114 +106,150 @@ function loginView(msg = "") {
 }
 
 /* ---------- 학생 화면 ---------- */
-async function lessonView(no) {
-  const max = Math.min(me.current_lesson, lessons.length);
-  if (!lessons.length) return html(hdr() + `<div class="card">강의가 아직 없어요.</div>`);
-  no = Math.min(no || max, lessons.length);
-  const L = lessons.find(x => x.lesson_no == no);
-  const { data: pg } = await sb.from("progress").select("*").eq("student_id", me.id).eq("lesson_no", no).maybeSingle();
-  const p = pg || {};
-  const done = me.current_lesson > lessons.length;
-  const opts = lessons.filter(x => x.lesson_no <= max).reverse()
-    .map(x => `<option value="${x.lesson_no}" ${x.lesson_no == no ? "selected" : ""}>${x.lesson_no}강 ${esc(x.title)}</option>`).join("");
-  html(hdr() + `<div class="card">
-    ${done ? `<p class="ok">모든 강의를 마쳤어요! 🎉 복습하고 싶은 강의를 골라 보세요.</p>` : ""}
-    <div class="muted">${no}강 · ${L.unit}단원</div><h2>${esc(L.title)}</h2>
-    <select id="sel" aria-label="강의 선택">${opts}</select>
-    <div class="steps">
-      <button class="step ${p.video_done ? "done" : ""}" onclick="videoStep(${no})"><span>① 영상 보기</span></button>
-      <button class="step ${p.note_done ? "done" : ""}" onclick="runStep(${no},'note','요점노트 빈칸')"><span>② 요점노트 빈칸 채우기</span></button>
-      <button class="step ${p.practice_done ? "done" : ""}" onclick="practiceStep(${no})"><span>③ 어순배열 · 이해문제</span></button>
-    </div>
-    <button class="btn ghost" onclick="runStep(${no},'translate','번역 타이핑',true)">한글 → 영어 번역 타이핑</button>
-    <button class="btn ghost" onclick="reviewStep()">오답 복습</button></div>`);
-  $("#sel").onchange = e => lessonView(+e.target.value);
-}
-
-function videoStep(no) {
-  const L = lessons.find(x => x.lesson_no == no);
-  html(hdr() + `<div class="card"><h2>${no}강 ${esc(L.title)}</h2>
-    <div class="video"><iframe src="${esc(L.embed_url)}" allow="autoplay; fullscreen" allowfullscreen title="강의 영상"></iframe></div>
-    <button class="btn" id="seen">다 봤어요</button><button class="btn ghost" id="back">돌아가기</button></div>`);
-  $("#seen").onclick = async () => { need(await sb.rpc("save_progress", { p_lesson: no, p_step: "video" })); lessonView(no); };
-  $("#back").onclick = () => lessonView(no);
-}
-
+const UN=["명사와 관사","인칭대명사","be동사와 일반동사","형용사","부사","be동사 과거","일반동사 과거","미래시제","진행시제","조동사","비교급과 최상급","전치사","접속사","의문사","명령문과 제안문","문장의 형식","현재완료와 조동사 표현","수동태","가정법","to부정사","동명사","분사","부사절과 분사구문","관계대명사","관계부사"];
+let prog = {}, openU = 0, cur = 0, tick = 0;
+const norm = s => String(s).trim().toLowerCase().replace(/\s+/g, "");
+const CH = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ";
+const cho = s => [...s.replace(/[A-Za-z]+/g, w => w[0] + "○".repeat(w.length - 1))].map(c => { const n = c.charCodeAt(0) - 44032; return n >= 0 && n < 11172 ? CH[n / 588 | 0] : c; }).join("");
+const mainHtml = h => { clearInterval(tick); $("#main").innerHTML = h; };
 async function getQs(no, step) { return need(await sb.rpc("get_questions", { p_lesson: no, p_step: step })) || []; }
 
-async function runStep(no, step, title, free) {
-  const qs = await getQs(no, step);
-  if (!qs.length) { alert("이 단계의 문제가 아직 준비되지 않았어요."); return; }
-  runSet(title, qs, async () => {
-    if (!free) need(await sb.rpc("save_progress", { p_lesson: no, p_step: step }));
-    await refresh(no);
-  });
+function sideHtml() {
+  const by = {}; lessons.forEach(l => (by[l.unit] = by[l.unit] || []).push(l));
+  return Object.keys(by).map(u => {
+    const a = by[u], d = a.filter(l => prog[l.lesson_no]).length;
+    return `<button class="un" onclick="openU=${openU == u ? 0 : u};drawSide()"><span>${u}. ${UN[u - 1] || "단원"}</span><small>${Math.round(100 * d / a.length)}%</small></button>` +
+      (openU == u ? a.map(l => `<button class="sub ${l.lesson_no == cur ? "cur" : ""}" onclick="go(${l.lesson_no})"><span>${l.lesson_no}. ${esc(l.title)}</span>${prog[l.lesson_no] ? "<b>학습완료</b>" : ""}</button>`).join("") : "");
+  }).join("");
+}
+const drawSide = () => { $(".side").innerHTML = sideHtml(); };
+
+async function lessonView() {
+  const r = await sb.from("progress").select("lesson_no,completed_at").eq("student_id", me.id);
+  prog = {}; (r.data || []).forEach(p => { if (p.completed_at) prog[p.lesson_no] = true; });
+  const nx = lessons.find(l => !prog[l.lesson_no]) || lessons[0];
+  if (!nx) return html(hdr() + `<div class="card">강의가 아직 없어요.</div>`);
+  html(hdr() + `<div class="lay"><div class="side"></div><div id="main"></div></div>`);
+  go(nx.lesson_no);
 }
 
-async function practiceStep(no) {
-  const qs = [...await getQs(no, "order"), ...await getQs(no, "quiz")];
-  if (!qs.length) { alert("이 단계의 문제가 아직 준비되지 않았어요."); return; }
-  const rv = (need(await sb.rpc("get_review", { p_limit: 3 })) || []).filter(q => q.lesson_no != no);
-  runSet("어순배열 · 이해문제", [...qs, ...rv], async () => {
-    need(await sb.rpc("save_progress", { p_lesson: no, p_step: "practice" }));
-    await refresh();
-  });
+const vid = L => `<div class="card"><div class="muted">${L.lesson_no}강 · ${esc(UN[L.unit - 1] || "")}</div><h2>${esc(L.title)}</h2>
+  <div class="vwrap" id="vw"><iframe src="${esc(L.embed_url)}" allow="autoplay; fullscreen" allowfullscreen title="강의 영상"></iframe>
+  <div class="vbar"><button class="btn ghost" id="fs">전체화면</button><button class="btn" id="seen">다 봤어요</button></div></div></div>`;
+
+function wire(no) {
+  $("#fs").onclick = () => { document.fullscreenElement ? document.exitFullscreen() : $("#vw").requestFullscreen(); };
+  $("#seen").onclick = async () => { need(await sb.rpc("save_progress", { p_lesson: no, p_step: "video" })); noteStep(no); };
 }
 
-async function reviewStep() {
-  const qs = need(await sb.rpc("get_review", { p_limit: 10 })) || [];
-  if (!qs.length) { alert("복습할 오답이 없어요. 잘하고 있어요!"); return; }
-  runSet("오답 복습", qs, () => refresh());
+function go(no) {
+  cur = no; const L = lessons.find(x => x.lesson_no == no); openU = L.unit; drawSide();
+  mainHtml((prog[no] ? `<p class="ok">학습완료한 강의예요. 다시 학습할 수 있어요.</p>` : "") + vid(L));
+  wire(no); window.scrollTo(0, 0);
 }
 
-async function refresh(no) {
-  const { data } = await sb.from("profiles").select("*").eq("id", me.id).single();
-  if (data) me = data;
-  lessonView(no);
-}
-
-function runSet(title, qs, onDone) {
-  let i = 0, right = 0;
-  const next = () => {
-    if (i >= qs.length) {
-      html(hdr() + `<div class="card"><h2>${esc(title)} 끝!</h2><p>${qs.length}문제 중 <b>${right}</b>개 맞았어요.</p><button class="btn" id="fin">계속하기</button></div>`);
-      $("#fin").onclick = onDone; return;
-    }
-    const q = qs[i]; let busy = false;
-    html(hdr() + `<div class="card"><div class="muted">${esc(title)} · ${i + 1} / ${qs.length}</div>
-      <p class="q">${esc(q.prompt)}</p><div id="in"></div><div id="fb"></div></div>`);
-    const box = $("#in");
-    const send = async a => {
-      if (busy) return; busy = true; box.style.pointerEvents = "none";
-      const d = need(await sb.rpc("submit_answer", { p_question: q.id, p_answer: a }));
-      if (!d) { busy = false; box.style.pointerEvents = ""; return; }
-      const r = d[0]; if (r.is_correct) right++;
-      $("#fb").innerHTML = `<p class="${r.is_correct ? "ok" : "no"}">${r.is_correct ? "정답이에요! 👍" : "아쉬워요. 정답: " + esc(r.correct_answer)}</p>
-        <button class="btn" id="nx">${i + 1 < qs.length ? "다음 문제" : "끝내기"}</button>`;
-      $("#nx").focus(); $("#nx").onclick = () => { i++; next(); };
+async function noteStep(no) {
+  const { data } = await sb.from("notes").select("body").eq("lesson_no", no).maybeSingle();
+  if (!data) return typeStep(no);
+  const it = [];
+  const body = data.body.split(/\{\{(.*?)\}\}/).map((t, k) => {
+    if (k % 2 == 0) return esc(t).replace(/\n/g, "<br>");
+    const i = it.push({ a: t.trim(), t0: 0, th: 0, ok: 0 }) - 1;
+    return `<span class="bl"><input data-i="${i}" size="${Math.max(4, t.trim().length + 1)}" autocomplete="off" autocapitalize="none" spellcheck="false"><button class="hint" data-h="${i}" disabled>힌트(10)</button><span class="ans" id="x${i}"></span></span>`;
+  }).join("");
+  mainHtml(`<div class="card"><div class="muted">요점정리노트 · 괄호를 채워 보세요</div><div class="note">${body}</div><button class="btn" id="nxt" disabled>다음: 문장 입력하기</button></div>`);
+  const hs = document.querySelectorAll(".hint");
+  document.querySelectorAll(".bl input").forEach(el => {
+    const i = el.dataset.i, x = it[i];
+    el.onfocus = () => { if (!x.t0) x.t0 = Date.now(); };
+    el.oninput = () => {
+      if (norm(el.value) !== norm(x.a)) return;
+      x.ok = 1; el.classList.add("good"); el.disabled = true; $("#x" + i).textContent = ""; hs[i].hidden = true;
+      if (it.every(y => y.ok)) $("#nxt").disabled = false;
     };
-    if (q.step === "order") {
-      const pool = shuffle((q.words || []).map((w, k) => ({ w, k }))); const picked = [];
-      const draw = () => {
-        box.innerHTML = `<div class="slot">${picked.map((o, j) => `<button class="chip on" data-j="${j}">${esc(o.w)}</button>`).join("") || `<span class="muted">아래 단어를 순서대로 눌러 문장을 만드세요</span>`}</div>
-          <div class="pool">${pool.filter(o => !picked.includes(o)).map(o => `<button class="chip" data-k="${o.k}">${esc(o.w)}</button>`).join("")}</div>
-          <button class="btn" id="ok">확인</button>`;
-        box.querySelectorAll(".pool .chip").forEach(b => b.onclick = () => { picked.push(pool.find(o => o.k == b.dataset.k)); draw(); });
-        box.querySelectorAll(".slot .chip").forEach(b => b.onclick = () => { picked.splice(+b.dataset.j, 1); draw(); });
-        $("#ok").onclick = () => picked.length && send(picked.map(o => o.w).join(" "));
-      };
-      draw();
-    } else if (q.step === "quiz" && q.choices && q.choices.length) {
-      box.innerHTML = q.choices.map((c, k) => `<button class="choice" data-k="${k}">${esc(c)}</button>`).join("");
-      box.querySelectorAll(".choice").forEach(b => b.onclick = () => send(q.choices[+b.dataset.k]));
-    } else {
-      box.innerHTML = `<input id="ans" placeholder="정답을 입력하세요" autocomplete="off" autocapitalize="none" spellcheck="false"><button class="btn" id="ok">확인</button>`;
-      $("#ans").focus();
-      const go = () => $("#ans").value.trim() && send($("#ans").value);
-      $("#ok").onclick = go; $("#ans").onkeydown = e => { if (e.key === "Enter") go(); };
+  });
+  hs.forEach(b => b.onclick = () => {
+    const x = it[b.dataset.h], o = $("#x" + b.dataset.h);
+    if (!x.th) { x.th = Date.now(); o.textContent = "초성: " + cho(x.a); }
+    else { o.textContent = "정답: " + x.a; b.hidden = true; }
+  });
+  tick = setInterval(() => {
+    const now = Date.now();
+    it.forEach((x, i) => {
+      const b = hs[i]; if (x.ok || b.hidden) return;
+      if (!x.th) { const s = x.t0 ? 10 - Math.floor((now - x.t0) / 1000) : 10; b.disabled = s > 0; b.textContent = s > 0 ? `힌트(${s})` : "힌트보기"; }
+      else { const s = 10 - Math.floor((now - x.th) / 1000); b.disabled = s > 0; b.textContent = s > 0 ? `정답보기(${s})` : "정답보기"; }
+    });
+  }, 500);
+  $("#nxt").onclick = () => typeStep(no);
+}
+
+async function typeStep(no) {
+  const qs = await getQs(no, "order");
+  if (!qs.length) return quizStep(no);
+  let i = 0;
+  const show = () => {
+    if (i >= qs.length) {
+      mainHtml(`<div class="card"><h2>${qs.length >= 60 ? "60문장을 모두 입력했어요! 정말 대단해요 👏" : "문장 입력을 모두 마쳤어요! 👏"}</h2><button class="btn" id="go">퀴즈 풀기</button></div>`);
+      $("#go").onclick = () => quizStep(no); return;
     }
+    if (i > 0 && i % 20 == 0 && !qs[i].seen) {
+      qs[i].seen = 1;
+      mainHtml(`<div class="card"><h2>${i}문장 완료! 👍</h2><p>더 입력할수록 어순 감각이 좋아져요.</p><button class="btn" id="more">다음 20문장 계속하기</button><button class="btn ghost" id="quiz">여기까지만 하고 퀴즈풀기로 넘어갈게요</button></div>`);
+      $("#more").onclick = show; $("#quiz").onclick = () => quizStep(no); return;
+    }
+    const q = qs[i], pg = Math.floor(i / 20) + 1, pgs = Math.ceil(qs.length / 20);
+    mainHtml(`<div class="card"><div class="muted">어순 맞춰 입력하기 · ${i + 1} / ${qs.length} (${pg}/${pgs}쪽)</div>
+      ${q.prompt ? `<p class="q">${esc(q.prompt)}</p>` : ""}
+      <div class="pool">${(q.words || []).map(w => `<span class="chip">${esc(w)}</span>`).join("")}</div>
+      <input id="ans" placeholder="알맞은 순서로 문장을 입력하세요" autocomplete="off" autocapitalize="none" spellcheck="false">
+      <button class="btn" id="ok">확인</button><div id="fb"></div></div>`);
+    const inp = $("#ans"); inp.focus(); let busy = false;
+    const nxt = () => { i++; show(); };
+    const check = async () => {
+      if (busy || !inp.value.trim()) return; busy = true;
+      const d = need(await sb.rpc("submit_answer", { p_question: q.id, p_answer: inp.value }));
+      if (!d) { busy = false; return; }
+      const r = d[0]; inp.disabled = true; $("#ok").hidden = true;
+      if (r.is_correct) { $("#fb").innerHTML = `<p class="ok">정답! 👍</p>`; setTimeout(nxt, 700); }
+      else { $("#fb").innerHTML = `<p class="no">정답: ${esc(r.correct_answer)}</p><button class="btn" id="nx">다음 문장</button>`; $("#nx").onclick = nxt; $("#nx").focus(); }
+    };
+    inp.onkeydown = e => { if (e.key === "Enter") check(); };
+    $("#ok").onclick = check;
   };
-  next();
+  show();
+}
+
+async function quizStep(no) {
+  const qs = shuffle(await getQs(no, "quiz")).slice(0, 10); let i = 0, right = 0;
+  const show = () => {
+    if (i >= qs.length) return finish(no, right, qs.length);
+    const q = qs[i];
+    mainHtml(`<div class="card"><div class="muted">퀴즈 · ${i + 1} / ${qs.length}</div><p class="q">${esc(q.prompt)}</p>
+      ${shuffle([...(q.choices || [])]).map((c, k) => `<button class="choice" data-c="${esc(c)}">${"①②③④⑤"[k]} ${esc(c)}</button>`).join("")}<div id="fb"></div></div>`);
+    const all = document.querySelectorAll(".choice");
+    all.forEach(b => b.onclick = async () => {
+      all.forEach(x => x.disabled = true);
+      const d = need(await sb.rpc("submit_answer", { p_question: q.id, p_answer: b.dataset.c }));
+      if (!d) { all.forEach(x => x.disabled = false); return; }
+      const r = d[0]; if (r.is_correct) right++;
+      b.style.borderColor = r.is_correct ? "var(--ok)" : "var(--no)";
+      $("#fb").innerHTML = `<p class="${r.is_correct ? "ok" : "no"}">${r.is_correct ? "정답이에요! 👍" : "아쉬워요. 정답: " + esc(r.correct_answer)}</p><button class="btn" id="nx">${i + 1 < qs.length ? "다음 문제" : "결과 보기"}</button>`;
+      $("#nx").onclick = () => { i++; show(); };
+    });
+  };
+  show();
+}
+
+async function finish(no, right, n) {
+  need(await sb.rpc("save_progress", { p_lesson: no, p_step: "note" }));
+  need(await sb.rpc("save_progress", { p_lesson: no, p_step: "practice" }));
+  prog[no] = true;
+  const nx = lessons.find(l => l.lesson_no > no);
+  const card = `<div class="card"><h2>🎉 학습완료!</h2>${n ? `<p>퀴즈 ${n}문제 중 <b>${right}</b>개 맞았어요.</p>` : ""}${nx ? `<p class="muted">다음 강의 영상이 준비됐어요.</p>` : `<p class="ok">마지막 강의까지 모두 마쳤어요!</p>`}</div>`;
+  if (nx) { cur = nx.lesson_no; openU = nx.unit; drawSide(); mainHtml(card + vid(nx)); wire(nx.lesson_no); }
+  else { drawSide(); mainHtml(card); }
+  window.scrollTo(0, 0);
 }
 
 /* ---------- 관리자 화면 ---------- */
