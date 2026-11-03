@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>고딸영어 문법</title>
+<style>
+:root{--ink:#16233b;--bg:#f3f6fb;--card:#fff;--line:#d9e0ec;--acc:#2f6bff;--accT:#fff;--ok:#1f9d6b;--no:#d64550;--hl:#ffe58a;--mut:#667189}
+@media (prefers-color-scheme:dark){:root{--ink:#e8edf7;--bg:#10141d;--card:#1a2130;--line:#2e384d;--acc:#6c93ff;--accT:#0c1220;--ok:#4fd1a0;--no:#ff7b84;--hl:#5b4a12;--mut:#9aa6bf}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 "Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif}
+#app{max-width:760px;margin:0 auto;padding:12px 14px 60px}
+.bar{display:flex;justify-content:space-between;align-items:center;padding:10px 2px;gap:8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin:12px 0}
+.narrow{max-width:380px;margin:12vh auto}
+h1{font-size:26px;margin:0 0 6px}h2{font-size:20px;margin:4px 0 12px;line-height:1.4}
+.muted{color:var(--mut);font-size:14px}.err{color:var(--no);min-height:1.4em;margin:8px 0 0}
+input,select{width:100%;font:inherit;padding:11px 12px;margin:6px 0;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink)}
+button{font:inherit;cursor:pointer;color:inherit}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+.btn{width:100%;margin-top:10px;padding:12px;border:0;border-radius:10px;background:var(--acc);color:var(--accT);font-weight:700}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink);font-weight:500}
+.link{background:none;border:0;color:var(--acc);padding:0 4px;text-decoration:underline}
+.steps{display:grid;gap:8px;margin:14px 0 4px}
+.step{display:flex;justify-content:space-between;text-align:left;padding:14px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.step.done{border-color:var(--ok)}.step.done::after{content:"✔ 완료";color:var(--ok);font-weight:700}
+.video{position:relative;padding-top:56.25%;margin:10px 0;border-radius:10px;overflow:hidden;background:#000}
+.video iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.q{font-size:19px;line-height:1.6;margin:6px 0 14px}
+.slot{min-height:56px;display:flex;flex-wrap:wrap;gap:8px;padding:10px;border:2px dashed var(--line);border-radius:10px;margin-bottom:12px}
+.pool{display:flex;flex-wrap:wrap;gap:8px}
+.chip{padding:8px 14px;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:17px}
+.chip.on{background:var(--hl)}
+.choice{display:block;width:100%;text-align:left;padding:12px 14px;margin:8px 0;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.ok{color:var(--ok);font-weight:700}.no{color:var(--no);font-weight:700}
+.scroll{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+tr.off{opacity:.5}.act button{margin-right:4px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
+.row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}@media(max-width:560px){.row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.js"></script>
+<script>
+const SITE = "고딸영어 문법";
+const SB_URL = "https://anzdgisybvlxxusspfom.supabase.co";
+const SB_KEY = "sb_publishable_ZozBAhHUaGdxcQu9YGttUA_1-2IdGgE";
+const sb = supabase.createClient(SB_URL, SB_KEY);
+const $ = s => document.querySelector(s);
+const esc = t => String(t ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const html = h => { $("#app").innerHTML = h; window.scrollTo(0, 0); };
+const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const fmt = d => d ? new Date(d).toLocaleString("ko-KR", {month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit"}) : "-";
+const need = r => { if (r.error) { alert("문제가 생겼어요: " + r.error.message); return null; } return r.data; };
+let me = null, lessons = [], R = [];
+
+const top = () => `<div class="bar"><b>${SITE}</b><span>${esc(me.name)} <button class="link" onclick="logout()">나가기</button></span></div>`;
+async function logout() { await sb.auth.signOut(); me = null; loginView(); }
+
+async function init() {
+  const { data: { session } } = await sb.auth.getSession();
+  session ? loadMe() : loginView();
+}
+
+async function loadMe() {
+  const { data: { user } } = await sb.auth.getUser();
+  const { data, error } = await sb.from("profiles").select("*").eq("id", user.id).single();
+  if (error || !data || !data.active) { await sb.auth.signOut(); return loginView("사용할 수 없는 계정이에요. 선생님께 문의하세요."); }
+  me = data;
+  const l = await sb.from("lessons").select("lesson_no,unit,title,embed_url").order("lesson_no");
+  lessons = l.data || [];
+  me.role === "admin" ? adminView() : lessonView();
+}
+
+function loginView(msg = "") {
+  html(`<div class="card narrow"><h1>${SITE}</h1><p class="muted">선생님이 알려준 아이디와 비밀번호를 입력하세요.</p>
+    <input id="u" placeholder="아이디" autocapitalize="none" autocomplete="username">
+    <input id="p" type="password" placeholder="비밀번호" autocomplete="current-password">
+    <button class="btn" id="go">로그인</button><p class="err">${esc(msg)}</p></div>`);
+  const go = async () => {
+    const u = $("#u").value.trim().toLowerCase(), p = $("#p").value;
+    if (!u || !p) return;
+    $("#go").disabled = true;
+    const email = u.includes("@") ? u : u + "@student.example.com";
+    const { error } = await sb.auth.signInWithPassword({ email, password: p });
+    if (error) return loginView("아이디 또는 비밀번호가 맞지 않아요.");
+    loadMe();
+  };
+  $("#go").onclick = go;
+  $("#p").onkeydown = e => { if (e.key === "Enter") go(); };
+}
+
+/* ---------- 학생 화면 ---------- */
+async function lessonView(no) {
+  const max = Math.min(me.current_lesson, lessons.length);
+  if (!lessons.length) return html(top() + `<div class="card">강의가 아직 없어요.</div>`);
+  no = Math.min(no || max, lessons.length);
+  const L = lessons.find(x => x.lesson_no == no);
+  const { data: pg } = await sb.from("progress").select("*").eq("student_id", me.id).eq("lesson_no", no).maybeSingle();
+  const p = pg || {};
+  const done = me.current_lesson > lessons.length;
+  const opts = lessons.filter(x => x.lesson_no <= max).reverse()
+    .map(x => `<option value="${x.lesson_no}" ${x.lesson_no == no ? "selected" : ""}>${x.lesson_no}강 ${esc(x.title)}</option>`).join("");
+  html(top() + `<div class="card">
+    ${done ? `<p class="ok">모든 강의를 마쳤어요! 🎉 복습하고 싶은 강의를 골라 보세요.</p>` : ""}
+    <div class="muted">${no}강 · ${L.unit}단원</div><h2>${esc(L.title)}</h2>
+    <select id="sel" aria-label="강의 선택">${opts}</select>
+    <div class="steps">
+      <button class="step ${p.video_done ? "done" : ""}" onclick="videoStep(${no})"><span>① 영상 보기</span></button>
+      <button class="step ${p.note_done ? "done" : ""}" onclick="runStep(${no},'note','요점노트 빈칸')"><span>② 요점노트 빈칸 채우기</span></button>
+      <button class="step ${p.practice_done ? "done" : ""}" onclick="practiceStep(${no})"><span>③ 어순배열 · 이해문제</span></button>
+    </div>
+    <button class="btn ghost" onclick="runStep(${no},'translate','번역 타이핑',true)">한글 → 영어 번역 타이핑</button>
+    <button class="btn ghost" onclick="reviewStep()">오답 복습</button></div>`);
+  $("#sel").onchange = e => lessonView(+e.target.value);
+}
+
+function videoStep(no) {
+  const L = lessons.find(x => x.lesson_no == no);
+  html(top() + `<div class="card"><h2>${no}강 ${esc(L.title)}</h2>
+    <div class="video"><iframe src="${esc(L.embed_url)}" allow="autoplay; fullscreen" allowfullscreen title="강의 영상"></iframe></div>
+    <button class="btn" id="seen">다 봤어요</button><button class="btn ghost" id="back">돌아가기</button></div>`);
+  $("#seen").onclick = async () => { need(await sb.rpc("save_progress", { p_lesson: no, p_step: "video" })); lessonView(no); };
+  $("#back").onclick = () => lessonView(no);
+}
+
+async function getQs(no, step) { return need(await sb.rpc("get_questions", { p_lesson: no, p_step: step })) || []; }
+
+async function runStep(no, step, title, free) {
+  const qs = await getQs(no, step);
+  if (!qs.length) { alert("이 단계의 문제가 아직 준비되지 않았어요."); return; }
+  runSet(title, qs, async () => {
+    if (!free) need(await sb.rpc("save_progress", { p_lesson: no, p_step: step }));
+    await refresh(no);
+  });
+}
+
+async function practiceStep(no) {
+  const qs = [...await getQs(no, "order"), ...await getQs(no, "quiz")];
+  if (!qs.length) { alert("이 단계의 문제가 아직 준비되지 않았어요."); return; }
+  const rv = (need(await sb.rpc("get_review", { p_limit: 3 })) || []).filter(q => q.lesson_no != no);
+  runSet("어순배열 · 이해문제", [...qs, ...rv], async () => {
+    need(await sb.rpc("save_progress", { p_lesson: no, p_step: "practice" }));
+    await refresh();
+  });
+}
+
+async function reviewStep() {
+  const qs = need(await sb.rpc("get_review", { p_limit: 10 })) || [];
+  if (!qs.length) { alert("복습할 오답이 없어요. 잘하고 있어요!"); return; }
+  runSet("오답 복습", qs, () => refresh());
+}
+
+async function refresh(no) {
+  const { data } = await sb.from("profiles").select("*").eq("id", me.id).single();
+  if (data) me = data;
+  lessonView(no);
+}
+
+function runSet(title, qs, onDone) {
+  let i = 0, right = 0;
+  const next = () => {
+    if (i >= qs.length) {
+      html(top() + `<div class="card"><h2>${esc(title)} 끝!</h2><p>${qs.length}문제 중 <b>${right}</b>개 맞았어요.</p><button class="btn" id="fin">계속하기</button></div>`);
+      $("#fin").onclick = onDone; return;
+    }
+    const q = qs[i]; let busy = false;
+    html(top() + `<div class="card"><div class="muted">${esc(title)} · ${i + 1} / ${qs.length}</div>
+      <p class="q">${esc(q.prompt)}</p><div id="in"></div><div id="fb"></div></div>`);
+    const box = $("#in");
+    const send = async a => {
+      if (busy) return; busy = true; box.style.pointerEvents = "none";
+      const d = need(await sb.rpc("submit_answer", { p_question: q.id, p_answer: a }));
+      if (!d) { busy = false; box.style.pointerEvents = ""; return; }
+      const r = d[0]; if (r.is_correct) right++;
+      $("#fb").innerHTML = `<p class="${r.is_correct ? "ok" : "no"}">${r.is_correct ? "정답이에요! 👍" : "아쉬워요. 정답: " + esc(r.correct_answer)}</p>
+        <button class="btn" id="nx">${i + 1 < qs.length ? "다음 문제" : "끝내기"}</button>`;
+      $("#nx").focus(); $("#nx").onclick = () => { i++; next(); };
+    };
+    if (q.step === "order") {
+      const pool = shuffle((q.words || []).map((w, k) => ({ w, k }))); const picked = [];
+      const draw = () => {
+        box.innerHTML = `<div class="slot">${picked.map((o, j) => `<button class="chip on" data-j="${j}">${esc(o.w)}</button>`).join("") || `<span class="muted">아래 단어를 순서대로 눌러 문장을 만드세요</span>`}</div>
+          <div class="pool">${pool.filter(o => !picked.includes(o)).map(o => `<button class="chip" data-k="${o.k}">${esc(o.w)}</button>`).join("")}</div>
+          <button class="btn" id="ok">확인</button>`;
+        box.querySelectorAll(".pool .chip").forEach(b => b.onclick = () => { picked.push(pool.find(o => o.k == b.dataset.k)); draw(); });
+        box.querySelectorAll(".slot .chip").forEach(b => b.onclick = () => { picked.splice(+b.dataset.j, 1); draw(); });
+        $("#ok").onclick = () => picked.length && send(picked.map(o => o.w).join(" "));
+      };
+      draw();
+    } else if (q.step === "quiz" && q.choices && q.choices.length) {
+      box.innerHTML = q.choices.map((c, k) => `<button class="choice" data-k="${k}">${esc(c)}</button>`).join("");
+      box.querySelectorAll(".choice").forEach(b => b.onclick = () => send(q.choices[+b.dataset.k]));
+    } else {
+      box.innerHTML = `<input id="ans" placeholder="정답을 입력하세요" autocomplete="off" autocapitalize="none" spellcheck="false"><button class="btn" id="ok">확인</button>`;
+      $("#ans").focus();
+      const go = () => $("#ans").value.trim() && send($("#ans").value);
+      $("#ok").onclick = go; $("#ans").onkeydown = e => { if (e.key === "Enter") go(); };
+    }
+  };
+  next();
+}
+
+/* ---------- 관리자 화면 ---------- */
+async function adminView() {
+  R = need(await sb.rpc("admin_report")) || [];
+  const rows = R.map((s, i) => `<tr class="${s.active ? "" : "off"}"><td>${esc(s.name)}</td><td>${esc(s.login)}</td><td>${s.current_lesson}</td><td>${s.lessons_done}</td><td>${s.attempts_7d}</td>
+    <td>${s.accuracy_7d == null ? "-" : s.accuracy_7d + "%"}</td><td>${fmt(s.last_active)}</td>
+    <td class="act"><button onclick="detail(${i})">상세</button><button onclick="resetPw(${i})">비밀번호</button><button onclick="toggle(${i})">${s.active ? "중지" : "재개"}</button></td></tr>`).join("");
+  html(top() + `<div class="card"><h2>학생 리포트</h2><div class="scroll"><table>
+    <thead><tr><th>이름</th><th>아이디</th><th>현재 강</th><th>완료</th><th>7일 문제</th><th>7일 정답률</th><th>마지막 학습</th><th></th></tr></thead>
+    <tbody>${rows || `<tr><td colspan="8">아직 학생이 없어요. 아래에서 추가하세요.</td></tr>`}</tbody></table></div><div id="det"></div></div>
+    <div class="card"><h2>학생 추가</h2><div class="row">
+      <input id="nl" placeholder="아이디 (영문 소문자·숫자)" autocapitalize="none">
+      <input id="np" placeholder="비밀번호 (6자 이상)">
+      <input id="nn" placeholder="이름"></div>
+      <button class="btn" id="add">학생 만들기</button></div>`);
+  $("#add").onclick = async () => {
+    const l = $("#nl").value, p = $("#np").value, n = $("#nn").value.trim();
+    if (!l || !p || !n) return alert("아이디, 비밀번호, 이름을 모두 입력하세요.");
+    const d = need(await sb.rpc("admin_create_student", { p_login: l, p_password: p, p_name: n }));
+    if (d) { alert(d + "\n아이디: " + l.toLowerCase() + "\n비밀번호: " + p); adminView(); }
+  };
+}
+
+async function detail(i) {
+  const s = R[i];
+  const d = need(await sb.rpc("admin_lesson_stats", { p_student: s.student_id })) || [];
+  $("#det").innerHTML = `<h2 style="margin-top:20px">${esc(s.name)} · 강의별 결과</h2><div class="scroll"><table>
+    <thead><tr><th>강</th><th>제목</th><th>푼 문제</th><th>정답</th><th>정답률</th><th>완료</th></tr></thead><tbody>
+    ${d.map(x => `<tr><td>${x.lesson_no}</td><td style="white-space:normal">${esc(x.title)}</td><td>${x.attempts}</td><td>${x.correct}</td>
+      <td>${x.attempts ? Math.round(100 * x.correct / x.attempts) + "%" : "-"}</td><td>${fmt(x.completed_at)}</td></tr>`).join("") || `<tr><td colspan="6">아직 학습 기록이 없어요.</td></tr>`}
+    </tbody></table></div>`;
+}
+
+async function resetPw(i) {
+  const s = R[i], p = prompt(s.name + " 학생의 새 비밀번호 (6자 이상)");
+  if (!p) return;
+  const d = need(await sb.rpc("admin_reset_password", { p_student: s.student_id, p_password: p }));
+  if (d) alert(d + "\n새 비밀번호: " + p);
+}
+
+async function toggle(i) {
+  const s = R[i];
+  if (!confirm(s.name + " 학생을 " + (s.active ? "사용 중지" : "다시 사용") + "할까요?")) return;
+  need(await sb.rpc("admin_set_active", { p_student: s.student_id, p_active: !s.active }));
+  adminView();
+}
+
+init();
+</script>
+</body>
+</html>
