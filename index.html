@@ -55,7 +55,7 @@ const fmt = d => d ? new Date(d).toLocaleString("ko-KR", {month:"numeric", day:"
 const need = r => { if (r.error) { alert("문제가 생겼어요: " + r.error.message); return null; } return r.data; };
 let me = null, lessons = [], R = [];
 
-const top = () => `<div class="bar"><b>${SITE}</b><span>${esc(me.name)} <button class="link" onclick="logout()">나가기</button></span></div>`;
+const hdr = () => `<div class="bar"><b>${SITE}</b><span>${esc(me.name)} <button class="link" onclick="logout()">나가기</button></span></div>`;
 async function logout() { await sb.auth.signOut(); me = null; loginView(); }
 
 async function init() {
@@ -94,7 +94,7 @@ function loginView(msg = "") {
 /* ---------- 학생 화면 ---------- */
 async function lessonView(no) {
   const max = Math.min(me.current_lesson, lessons.length);
-  if (!lessons.length) return html(top() + `<div class="card">강의가 아직 없어요.</div>`);
+  if (!lessons.length) return html(hdr() + `<div class="card">강의가 아직 없어요.</div>`);
   no = Math.min(no || max, lessons.length);
   const L = lessons.find(x => x.lesson_no == no);
   const { data: pg } = await sb.from("progress").select("*").eq("student_id", me.id).eq("lesson_no", no).maybeSingle();
@@ -102,7 +102,7 @@ async function lessonView(no) {
   const done = me.current_lesson > lessons.length;
   const opts = lessons.filter(x => x.lesson_no <= max).reverse()
     .map(x => `<option value="${x.lesson_no}" ${x.lesson_no == no ? "selected" : ""}>${x.lesson_no}강 ${esc(x.title)}</option>`).join("");
-  html(top() + `<div class="card">
+  html(hdr() + `<div class="card">
     ${done ? `<p class="ok">모든 강의를 마쳤어요! 🎉 복습하고 싶은 강의를 골라 보세요.</p>` : ""}
     <div class="muted">${no}강 · ${L.unit}단원</div><h2>${esc(L.title)}</h2>
     <select id="sel" aria-label="강의 선택">${opts}</select>
@@ -118,7 +118,7 @@ async function lessonView(no) {
 
 function videoStep(no) {
   const L = lessons.find(x => x.lesson_no == no);
-  html(top() + `<div class="card"><h2>${no}강 ${esc(L.title)}</h2>
+  html(hdr() + `<div class="card"><h2>${no}강 ${esc(L.title)}</h2>
     <div class="video"><iframe src="${esc(L.embed_url)}" allow="autoplay; fullscreen" allowfullscreen title="강의 영상"></iframe></div>
     <button class="btn" id="seen">다 봤어요</button><button class="btn ghost" id="back">돌아가기</button></div>`);
   $("#seen").onclick = async () => { need(await sb.rpc("save_progress", { p_lesson: no, p_step: "video" })); lessonView(no); };
@@ -162,11 +162,11 @@ function runSet(title, qs, onDone) {
   let i = 0, right = 0;
   const next = () => {
     if (i >= qs.length) {
-      html(top() + `<div class="card"><h2>${esc(title)} 끝!</h2><p>${qs.length}문제 중 <b>${right}</b>개 맞았어요.</p><button class="btn" id="fin">계속하기</button></div>`);
+      html(hdr() + `<div class="card"><h2>${esc(title)} 끝!</h2><p>${qs.length}문제 중 <b>${right}</b>개 맞았어요.</p><button class="btn" id="fin">계속하기</button></div>`);
       $("#fin").onclick = onDone; return;
     }
     const q = qs[i]; let busy = false;
-    html(top() + `<div class="card"><div class="muted">${esc(title)} · ${i + 1} / ${qs.length}</div>
+    html(hdr() + `<div class="card"><div class="muted">${esc(title)} · ${i + 1} / ${qs.length}</div>
       <p class="q">${esc(q.prompt)}</p><div id="in"></div><div id="fb"></div></div>`);
     const box = $("#in");
     const send = async a => {
@@ -208,7 +208,7 @@ async function adminView() {
   const rows = R.map((s, i) => `<tr class="${s.active ? "" : "off"}"><td>${esc(s.name)}</td><td>${esc(s.login)}</td><td>${s.current_lesson}</td><td>${s.lessons_done}</td><td>${s.attempts_7d}</td>
     <td>${s.accuracy_7d == null ? "-" : s.accuracy_7d + "%"}</td><td>${fmt(s.last_active)}</td>
     <td class="act"><button onclick="detail(${i})">상세</button><button onclick="resetPw(${i})">비밀번호</button><button onclick="toggle(${i})">${s.active ? "중지" : "재개"}</button></td></tr>`).join("");
-  html(top() + `<div class="card"><h2>학생 리포트</h2><div class="scroll"><table>
+  html(hdr() + `<div class="card"><h2>학생 리포트</h2><div class="scroll"><table>
     <thead><tr><th>이름</th><th>아이디</th><th>현재 강</th><th>완료</th><th>7일 문제</th><th>7일 정답률</th><th>마지막 학습</th><th></th></tr></thead>
     <tbody>${rows || `<tr><td colspan="8">아직 학생이 없어요. 아래에서 추가하세요.</td></tr>`}</tbody></table></div><div id="det"></div></div>
     <div class="card"><h2>학생 추가</h2><div class="row">
