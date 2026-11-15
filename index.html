@@ -32,6 +32,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .pool{display:flex;flex-wrap:wrap;gap:8px}
 .chip{padding:8px 14px;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:17px}
 .chip.on{background:var(--hl)}
+.chip{transition:opacity .15s,background .15s}.chip.used{background:var(--line);color:var(--mut);opacity:.45;text-decoration:line-through}
 .choice{display:block;width:100%;text-align:left;padding:12px 14px;margin:8px 0;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
 .ok{color:var(--ok);font-weight:700}.no{color:var(--no);font-weight:700}
 .scroll{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px}
@@ -277,12 +278,22 @@ async function typeStep(no) {
       const T = x.answer.trim(), body = T.replace(/[.?!]+$/, "");
       const inp = $("#in" + i), mir = $("#m" + i), row = $("#r" + i); let fin = false;
       const eq = (a, b) => a.replace(/[’‘]/g, "'").toLowerCase() === b.toLowerCase();
+      const chips = [...row.querySelectorAll(".chip")], ws = body.split(" "); let c = 0;
+      const ends = ws.map(w => (c += w.length, c++ , c - 1));
+      const grey = j => {
+        chips.forEach(ch => ch.classList.remove("used"));
+        ws.forEach((w, k) => {
+          if (j < ends[k]) return;
+          const ch = chips.find(h => !h.classList.contains("used") && h.textContent.toLowerCase() === w.toLowerCase());
+          if (ch) ch.classList.add("used");
+        });
+      };
       inp.oninput = () => {
         if (fin) return;
         const v = inp.value; let j = 0;
         while (j < v.length && j < body.length && eq(v[j], body[j])) j++;
         if (j < v.length) ding();
-        inp.value = body.slice(0, j); mir.textContent = body.slice(0, j);
+        inp.value = body.slice(0, j); mir.textContent = body.slice(0, j); grey(j);
         if (j === body.length) {
           fin = true; mir.textContent = T; inp.value = T; inp.disabled = true; row.classList.add("ok"); done++;
           $("#cnt").textContent = done;
