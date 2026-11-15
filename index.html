@@ -155,10 +155,10 @@ function sideHtml() {
   return Object.keys(by).map(u => {
     const a = by[u], d = a.filter(l => prog[l.lesson_no]).length;
     return `<button class="un" onclick="openU=${openU == u ? 0 : u};drawSide()"><span>${u}. ${UN[u - 1] || "단원"}</span><small>${Math.round(100 * d / a.length)}%</small></button>` +
-      (openU == u ? (REVIEW.includes(+u) ? `<button class="sub rvb" onclick="reviewIntro(${u})"><span>📝 Review Test</span></button>` : "") + a.map(l => `<button class="sub ${l.lesson_no == cur ? "cur" : ""}" onclick="go(${l.lesson_no})"><span>${l.lesson_no}. ${esc(l.title)}</span>${prog[l.lesson_no] ? "<b>학습완료</b>" : ""}</button>`).join("") : "");
+      (openU == u ? a.map(l => `<button class="sub ${l.lesson_no == cur ? "cur" : ""}" onclick="go(${l.lesson_no})"><span>${l.lesson_no}. ${esc(l.title)}</span>${prog[l.lesson_no] ? "<b>학습완료</b>" : ""}</button>`).join("") + (REVIEW.includes(+u) ? `<button class="sub rvb" onclick="reviewIntro(${u})"><span>📝 Review Test</span></button>` : "") : "");
   }).join("");
 }
-const REVIEW = [1]; /* Review Test 문제가 올라간 단원 번호 */
+const REVIEW = [1, 2]; /* Review Test 문제가 올라간 단원 번호 */
 const drawSide = () => { $(".side").innerHTML = sideHtml(); };
 
 async function lessonView() {
@@ -419,7 +419,9 @@ async function nbRetry(u) {
 async function reviewIntro(u) {
   cur = 0; openU = u; drawSide();
   const w = need(await sb.rpc("get_review_wrong", { p_unit: u, p_limit: 10 })) || [];
-  mainHtml(`<div class="card"><h2>📝 Review Test · ${u}단원 ${esc(UN[u - 1] || "")}</h2>
+  const left = lessons.filter(l => l.unit == u && !prog[l.lesson_no]).map(l => l.lesson_no);
+  const note = left.length ? `<p class="muted">💡 아직 학습완료하지 않은 강의가 <b>${left.length}</b>개 있어요${left.length <= 6 ? " (" + left.join(", ") + "강)" : ""}. 강의를 다 마친 뒤에 풀면 더 좋지만, 지금 풀어 봐도 괜찮아요.</p>` : "";
+  mainHtml(`<div class="card"><h2>📝 Review Test · ${u}단원 ${esc(UN[u - 1] || "")}</h2>${note}
     <p>1단계: 지난 퀴즈에서 틀린 문제 복습 <b>${w.length}</b>문제${w.length ? "" : " (복습할 오답이 없어요 👏)"}</p>
     <p>2단계: 예상문제 <b>30</b>문제 (시간 제한 없어요)</p>
     <button class="btn" id="rs">시작하기</button></div>`);
