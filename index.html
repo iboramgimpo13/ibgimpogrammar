@@ -32,6 +32,11 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .pool{display:flex;flex-wrap:wrap;gap:8px}
 .chip{padding:8px 14px;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:17px}
 .chip.on{background:var(--hl)}
+.sub.rvb{font-weight:700;color:var(--acc)}
+.nbt{display:flex;gap:8px;margin:8px 0}.nbt .btn{flex:1;margin:0;padding:10px 6px;font-size:14px}
+.nbq .tag{font-size:12px;color:var(--mut)}.nbq .done{color:var(--ok);font-weight:700}
+.lh{margin:14px 2px 4px;font-weight:700}
+.rvw{border-top:1px solid var(--line);padding-top:8px;margin-top:10px;font-size:15px}
 .chip{transition:opacity .15s,background .15s}.chip.used{background:var(--line);color:var(--mut);opacity:.45;text-decoration:line-through}
 .choice{display:block;width:100%;text-align:left;padding:12px 14px;margin:8px 0;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
 .ok{color:var(--ok);font-weight:700}.no{color:var(--no);font-weight:700}
@@ -99,7 +104,7 @@ window.addEventListener("keydown", e => {
   }
 });
 
-const hdr = () => `<div class="bar"><b>${SITE}</b><span>${esc(me.name)} <button class="link" onclick="logout()">나가기</button></span></div>`;
+const hdr = () => `<div class="bar"><b>${SITE}</b><span>${esc(me.name)} ${me.role === "admin" ? "" : `<button class="link" onclick="notebook()">📒 My Grammar</button> `}<button class="link" onclick="logout()">나가기</button></span></div>`;
 async function logout() { setLock(false); await sb.auth.signOut(); me = null; loginView(); }
 
 async function init() {
@@ -150,9 +155,10 @@ function sideHtml() {
   return Object.keys(by).map(u => {
     const a = by[u], d = a.filter(l => prog[l.lesson_no]).length;
     return `<button class="un" onclick="openU=${openU == u ? 0 : u};drawSide()"><span>${u}. ${UN[u - 1] || "단원"}</span><small>${Math.round(100 * d / a.length)}%</small></button>` +
-      (openU == u ? a.map(l => `<button class="sub ${l.lesson_no == cur ? "cur" : ""}" onclick="go(${l.lesson_no})"><span>${l.lesson_no}. ${esc(l.title)}</span>${prog[l.lesson_no] ? "<b>학습완료</b>" : ""}</button>`).join("") : "");
+      (openU == u ? (REVIEW.includes(+u) ? `<button class="sub rvb" onclick="reviewIntro(${u})"><span>📝 Review Test</span></button>` : "") + a.map(l => `<button class="sub ${l.lesson_no == cur ? "cur" : ""}" onclick="go(${l.lesson_no})"><span>${l.lesson_no}. ${esc(l.title)}</span>${prog[l.lesson_no] ? "<b>학습완료</b>" : ""}</button>`).join("") : "");
   }).join("");
 }
+const REVIEW = [1]; /* Review Test 문제가 올라간 단원 번호 */
 const drawSide = () => { $(".side").innerHTML = sideHtml(); };
 
 async function lessonView() {
@@ -284,7 +290,8 @@ async function typeStep(no) {
         chips.forEach(ch => ch.classList.remove("used"));
         ws.forEach((w, k) => {
           if (j < ends[k]) return;
-          const ch = chips.find(h => !h.classList.contains("used") && h.textContent.toLowerCase() === w.toLowerCase());
+          const free = chips.filter(h => !h.classList.contains("used"));
+          const ch = free.find(h => h.textContent === w) || free.find(h => h.textContent.toLowerCase() === w.toLowerCase());
           if (ch) ch.classList.add("used");
         });
       };
@@ -361,6 +368,118 @@ async function finish(no, right, n) {
   if (nx) { cur = nx.lesson_no; openU = nx.unit; drawSide(); mainHtml(card + vid(nx)); wire(nx.lesson_no); }
   else { drawSide(); mainHtml(card); }
   window.scrollTo(0, 0);
+}
+
+
+
+/* ---------- My Grammar (오답노트) ---------- */
+let NB = [], nbTab = "open", nbSort = "recent", nbUnit = 0;
+async function notebook() {
+  cur = 0; drawSide(); nbUnit = 0;
+  NB = need(await sb.rpc("get_wrong_notebook")) || [];
+  nbDraw(); window.scrollTo(0, 0);
+}
+const nbDate = s => s ? new Date(s).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" }) : "";
+const nbKind = x => x.src === "review" ? "Review Test" : x.step === "order" ? "어순 배열" : "퀴즈";
+function nbCard(x) {
+  return `<div class="card nbq"><div class="tag">${x.lesson_no ? x.lesson_no + "강 · " : ""}${nbKind(x)} · 틀린 횟수 ${x.wrong_count}번 · 마지막 ${nbDate(x.last_at)}${x.solved ? ` · <span class="done">✔ 해결</span>` : ""}</div>
+    <p class="q">${esc(x.prompt)}</p>
+    ${x.my_answer ? `<div class="no">내 답: ${esc(x.my_answer)}</div>` : ""}<div class="ok">정답: ${esc(x.correct_answer)}</div>
+    ${x.explanation ? `<div class="exp">${esc(x.explanation)}</div>` : ""}</div>`;
+}
+function nbDraw() {
+  const open = NB.filter(x => !x.solved), done = NB.filter(x => x.solved), list = nbTab === "open" ? open : done;
+  const tabs = `<div class="nbt"><button class="btn ${nbTab === "open" ? "" : "ghost"}" onclick="nbTab='open';nbUnit=0;nbDraw()">아직 못 맞힌 문제 (${open.length})</button><button class="btn ${nbTab === "done" ? "" : "ghost"}" onclick="nbTab='done';nbUnit=0;nbDraw()">해결한 문제 (${done.length})</button></div>`;
+  let body = "";
+  if (!nbUnit) {
+    const by = {}; list.forEach(x => { const u = x.unit || 0; by[u] = (by[u] || 0) + 1; });
+    const us = Object.keys(by).map(Number).sort((a, b) => a - b);
+    body = us.length ? `<p class="muted">단원을 눌러 문제를 다시 확인해요.</p>` + us.map(u => `<button class="choice" onclick="nbUnit=${u};nbDraw()"><b>${u ? u + ". " + esc(UN[u - 1] || "단원") : "기타"}</b> · ${by[u]}문제</button>`).join("")
+      : `<div class="card">${nbTab === "open" ? "틀린 문제가 없어요. 대단해요! 👏" : "아직 해결한 문제가 없어요."}</div>`;
+  } else {
+    const items = list.filter(x => (x.unit || 0) === nbUnit);
+    const srt = [...items].sort(nbSort === "recent" ? (a, b) => new Date(b.last_at) - new Date(a.last_at) : (a, b) => (a.lesson_no || 0) - (b.lesson_no || 0) || new Date(b.last_at) - new Date(a.last_at));
+    let cards = "";
+    if (nbSort === "lesson") { let last = -1; srt.forEach(x => { if (x.lesson_no !== last) { last = x.lesson_no; cards += `<div class="lh">${x.lesson_no ? x.lesson_no + "강" : "기타"}</div>`; } cards += nbCard(x); }); }
+    else cards = srt.map(nbCard).join("");
+    const canRetry = nbTab === "open" && items.some(x => x.src === "quiz" && x.step === "quiz");
+    body = `<button class="link" onclick="nbUnit=0;nbDraw()">← 단원 목록</button><h3>${nbUnit}. ${esc(UN[nbUnit - 1] || "")} · ${items.length}문제</h3>
+      <div class="nbt"><button class="btn ${nbSort === "recent" ? "" : "ghost"}" onclick="nbSort='recent';nbDraw()">최근 틀린 순</button><button class="btn ${nbSort === "lesson" ? "" : "ghost"}" onclick="nbSort='lesson';nbDraw()">강의 번호순</button></div>
+      ${canRetry ? `<button class="btn" onclick="nbRetry(${nbUnit})">이 단원 오답 다시 풀기</button>` : ""}${cards}`;
+  }
+  mainHtml(`<div class="card"><h2>📒 My Grammar</h2><p class="muted">내가 틀렸던 문제를 단원별로 모아 봤어요.</p></div>${tabs}${body}`);
+}
+async function nbRetry(u) {
+  const w = need(await sb.rpc("get_review_wrong", { p_unit: u, p_limit: 10 })) || [];
+  if (!w.length) { alert("다시 풀 퀴즈 오답이 없어요."); return; }
+  reviewWrong(u, w);
+}
+
+/* ---------- Review Test ---------- */
+async function reviewIntro(u) {
+  cur = 0; openU = u; drawSide();
+  const w = need(await sb.rpc("get_review_wrong", { p_unit: u, p_limit: 10 })) || [];
+  mainHtml(`<div class="card"><h2>📝 Review Test · ${u}단원 ${esc(UN[u - 1] || "")}</h2>
+    <p>1단계: 지난 퀴즈에서 틀린 문제 복습 <b>${w.length}</b>문제${w.length ? "" : " (복습할 오답이 없어요 👏)"}</p>
+    <p>2단계: 예상문제 <b>30</b>문제 (시간 제한 없어요)</p>
+    <button class="btn" id="rs">시작하기</button></div>`);
+  $("#rs").onclick = () => w.length ? reviewWrong(u, w) : reviewMain(u);
+  window.scrollTo(0, 0);
+}
+
+async function reviewWrong(u, qs) {
+  let i = 0, fixed = 0;
+  const show = () => {
+    if (i >= qs.length) {
+      mainHtml(`<div class="card"><h2>오답 복습 끝! 👍</h2><p>${qs.length}문제 중 <b>${fixed}</b>개를 이번에 맞혔어요.</p>${REVIEW.includes(u) ? `<button class="btn" id="go2">30문제 풀기</button>` : `<button class="btn" id="go2">My Grammar로 돌아가기</button>`}</div>`);
+      $("#go2").onclick = () => REVIEW.includes(u) ? reviewMain(u) : notebook(); return;
+    }
+    const q = qs[i];
+    mainHtml(`<div class="card"><div class="muted">오답 복습 · ${i + 1} / ${qs.length}</div><p class="q">${esc(q.prompt)}</p>
+      ${shuffle([...(q.choices || [])]).map((c, k) => `<button class="choice" data-c="${esc(c)}">${"①②③④⑤"[k]} ${esc(c)}</button>`).join("")}<div id="fb"></div></div>`);
+    const all = document.querySelectorAll(".choice");
+    all.forEach(b => b.onclick = async () => {
+      all.forEach(x => x.disabled = true);
+      const d = need(await sb.rpc("submit_answer", { p_question: q.id, p_answer: b.dataset.c }));
+      if (!d) { all.forEach(x => x.disabled = false); return; }
+      const r = d[0]; if (r.is_correct) fixed++;
+      b.style.borderColor = r.is_correct ? "var(--ok)" : "var(--no)";
+      $("#fb").innerHTML = `<p class="${r.is_correct ? "ok" : "no"}">${r.is_correct ? "정답이에요! 👍" : "아쉬워요. 정답: " + esc(r.correct_answer)}</p><button class="btn" id="nx">${i + 1 < qs.length ? "다음 문제" : "복습 마치기"}</button>`;
+      $("#nx").onclick = () => { i++; show(); };
+    });
+    window.scrollTo(0, 0);
+  };
+  show();
+}
+
+async function reviewMain(u) {
+  const qs = need(await sb.rpc("get_review_questions", { p_unit: u, p_count: 30 })) || [];
+  if (!qs.length) { mainHtml(`<div class="card">아직 이 단원의 Review 문제가 없어요.</div>`); return; }
+  let i = 0, right = 0; const wrong = [];
+  const show = () => {
+    if (i >= qs.length) {
+      mainHtml(`<div class="card"><h2>🎉 Review Test 완료!</h2><p>${qs.length}문제 중 <b>${right}</b>개 맞았어요.</p>
+        ${wrong.length ? `<h3>틀린 문제</h3>` + wrong.map(w => `<div class="rvw"><div>${esc(w.prompt)}</div><div class="no">내 답: ${esc(w.mine)}</div><div class="ok">정답: ${esc(w.ans)}</div>${w.exp ? `<div class="exp">${esc(w.exp)}</div>` : ""}</div>`).join("") : `<p class="ok">전부 맞혔어요! 완벽해요 👏</p>`}
+        <button class="btn" id="again">다시 도전하기</button></div>`);
+      $("#again").onclick = () => reviewIntro(u); window.scrollTo(0, 0); return;
+    }
+    const q = qs[i];
+    mainHtml(`<div class="card"><div class="muted">Review Test · ${i + 1} / ${qs.length}</div><p class="q">${esc(q.prompt)}</p>
+      ${shuffle([...(q.choices || [])]).map((c, k) => `<button class="choice" data-c="${esc(c)}">${"①②③④⑤"[k]} ${esc(c)}</button>`).join("")}<div id="fb"></div></div>`);
+    const all = document.querySelectorAll(".choice");
+    all.forEach(b => b.onclick = async () => {
+      all.forEach(x => x.disabled = true);
+      const d = need(await sb.rpc("submit_review_answer", { p_question: q.id, p_answer: b.dataset.c }));
+      if (!d) { all.forEach(x => x.disabled = false); return; }
+      const r = d[0];
+      if (r.is_correct) right++; else wrong.push({ prompt: q.prompt, mine: b.dataset.c, ans: r.correct_answer, exp: r.explanation });
+      b.style.borderColor = r.is_correct ? "var(--ok)" : "var(--no)";
+      $("#fb").innerHTML = `<p class="${r.is_correct ? "ok" : "no"}">${r.is_correct ? "정답이에요! 👍" : "아쉬워요. 정답: " + esc(r.correct_answer)}</p>${r.explanation ? `<div class="exp">${esc(r.explanation)}</div>` : ""}<button class="btn" id="nx">${i + 1 < qs.length ? "다음 문제" : "결과 보기"}</button>`;
+      $("#nx").onclick = () => { i++; show(); };
+    });
+    window.scrollTo(0, 0);
+  };
+  show();
 }
 
 /* ---------- 관리자 화면 ---------- */
