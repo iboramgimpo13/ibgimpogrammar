@@ -294,7 +294,7 @@ function qBoardAll() {
   document.body.appendChild(d); d.querySelector("#cl").onclick = () => d.remove();
 }
 function boardHtml() {
-  const m = new Date().getMonth() + 1, top = board.slice(0, 5), mine = board.find(x => x.is_me);
+  const m = new Date().getMonth() + 1, top = board.filter(x => x.sentences > 0).slice(0, 5), mine = board.find(x => x.is_me && x.sentences > 0);
   const row = (x, extra) => `<div class="rkr ${x.is_me ? "me" : ""}"><span>${x.place}</span><span class="nm">${esc(x.name)}${extra || ""}</span><b>${x.sentences}</b></div>`;
   return `<div class="rk"><b>🏆 ${m}월 문장왕</b>${top.map(x => row(x)).join("") || `<div class="muted">아직 기록이 없어요</div>`}
     ${mine && mine.place > 5 ? `<div class="muted" style="text-align:center">⋮</div>` + row(mine, " (나)") : ""}
@@ -303,7 +303,7 @@ function boardHtml() {
 function boardAll() {
   const m = new Date().getMonth() + 1, d = document.createElement("div"); d.className = "modal";
   d.innerHTML = `<div class="box"><b>🏆 ${m}월 문장 순위</b> <span class="muted">(매달 1일에 새로 시작해요)</span>
-    ${board.map(x => `<div class="rkr ${x.is_me ? "me" : ""}"><span>${x.place}</span><span class="nm">${esc(x.name)}</span><b>${x.sentences}문장</b></div>`).join("")}
+    ${board.filter(x => x.sentences > 0).map(x => `<div class="rkr ${x.is_me ? "me" : ""}"><span>${x.place}</span><span class="nm">${esc(x.name)}</span><b>${x.sentences}문장</b></div>`).join("") || `<div class="muted">아직 기록이 없어요</div>`}
     <button class="btn" id="cl">닫기</button></div>`;
   d.onclick = e => { if (e.target === d) d.remove(); };
   document.body.appendChild(d); d.querySelector("#cl").onclick = () => d.remove();
@@ -328,18 +328,26 @@ async function typeStep(no) {
   const PAGE = 20, pages = Math.ceil(sents.length / PAGE);
   await loadBoard();
 
-  const showPage = pg => {
-    const items = sents.slice(pg * PAGE, pg * PAGE + PAGE); let done = 0;
-    mainHtml(`<div class="tw"><div class="card"><div class="muted">어순 맞춰 입력하기 · ${pg + 1}쪽 / ${pages}쪽 (총 ${sents.length}문장)</div>
+  const dkey = `tdraft:${me.id}:${no}`;
+  const loadD = () => { try { return JSON.parse(localStorage.getItem(dkey) || "null"); } catch (e) { return null; } };
+  const putD = v => { try { v ? localStorage.setItem(dkey, JSON.stringify(v)) : localStorage.removeItem(dkey); } catch (e) {} };
+  const showPage = (pg, d) => {
+    const items = d && d.ids ? d.ids.map(id => sents.find(x => x.id == id)).filter(Boolean) : sents.slice(pg * PAGE, pg * PAGE + PAGE); let done = 0;
+    const resumed = d && ((d.done || []).length || Object.keys(d.typed || {}).length);
+    mainHtml(`<div class="tw"><div class="card"><div class="muted">어순 맞춰 입력하기 · ${pg + 1}쪽 / ${pages}쪽 (총 ${sents.length}문장)</div>${resumed ? `<div class="ok" style="font-size:14px">💾 임시저장한 내용을 이어서 불러왔어요</div>` : ""}
       <p class="muted" style="margin:6px 0">단어를 보고 알맞은 순서로 문장을 입력해요. 틀리면 작게 '띵' 소리가 나요. <b><span id="cnt">0</span> / ${items.length}</b></p>
       ${items.map((x, i) => `<div class="srow" id="r${i}"><div class="ko">${i + 1}. ${esc(x.prompt)}</div>
         <div class="pool">${scramble(x.answer).map(w => `<span class="chip">${esc(w)}</span>`).join("")}</div>
         <div class="mir" id="m${i}"></div>
         <input class="sin" id="in${i}" placeholder="여기에 입력하세요" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">
         <span class="tick">✔</span></div>`).join("")}
-      <button class="btn" id="fin" disabled>다 했어요</button></div>
+      <div class="row2"><button class="btn ghost" id="sv">💾 임시저장</button><button class="btn" id="fin" disabled>다 했어요</button></div></div>
       <div class="rkbox">${rkHtml()}</div></div>`);
-    const first = $("#in0"); if (first) first.focus();
+    const saveD = () => {
+      const dn = [], ty = {};
+      items.forEach((x, i) => { const inp = $("#in" + i); if (!inp) return; if ($("#r" + i).classList.contains("ok")) dn.push(x.id); else if (inp.value) ty[x.id] = inp.value; });
+      putD({ pg, ids: items.map(x => x.id), done: dn, typed: ty });
+    };
     items.forEach((x, i) => {
       const T = x.answer.trim(), body = T.replace(/[.?!]+$/, "");
       const inp = $("#in" + i), mir = $("#m" + i), row = $("#r" + i); let fin = false;
@@ -355,27 +363,36 @@ async function typeStep(no) {
           if (ch) ch.classList.add("used");
         });
       };
+      const complete = rec => {
+        fin = true; mir.textContent = T; inp.value = T; inp.disabled = true; row.classList.add("ok"); done++; grey(body.length);
+        $("#cnt").textContent = done;
+        if (rec) {
+          sb.rpc("record_sentence", { p_question: x.id }).then(r => { if (typeof r.data === "number" && r.data >= 0) setMine(r.data); });
+          saveD();
+          const nx = $("#in" + (i + 1));
+          if (nx) { nx.focus(); nx.scrollIntoView({ block: "center", behavior: "smooth" }); }
+        }
+        if (done === items.length) { $("#fin").disabled = false; if (rec) $("#fin").scrollIntoView({ block: "center", behavior: "smooth" }); }
+      };
       inp.oninput = () => {
         if (fin) return;
         const v = inp.value; let j = 0;
         while (j < v.length && j < body.length && eq(v[j], body[j])) j++;
         if (j < v.length) ding();
         inp.value = body.slice(0, j); mir.textContent = body.slice(0, j); grey(j);
-        if (j === body.length) {
-          fin = true; mir.textContent = T; inp.value = T; inp.disabled = true; row.classList.add("ok"); done++;
-          $("#cnt").textContent = done;
-          sb.rpc("record_sentence", { p_question: x.id }).then(r => { if (typeof r.data === "number" && r.data >= 0) setMine(r.data); });
-          const nx = $("#in" + (i + 1));
-          if (nx) { nx.focus(); nx.scrollIntoView({ block: "center", behavior: "smooth" }); }
-          if (done === items.length) { $("#fin").disabled = false; $("#fin").scrollIntoView({ block: "center", behavior: "smooth" }); }
-        }
+        if (j === body.length) complete(true);
       };
+      if (d && (d.done || []).includes(x.id)) complete(false);
+      else if (d && d.typed && d.typed[x.id]) { inp.value = d.typed[x.id]; inp.oninput(); }
     });
+    const fi = [...document.querySelectorAll(".sin")].find(e => !e.disabled); if (fi) fi.focus();
+    $("#sv").onclick = () => { saveD(); const b = $("#sv"); b.textContent = "✔ 저장됐어요"; setTimeout(() => { if ($("#sv")) $("#sv").textContent = "💾 임시저장"; }, 1800); };
     $("#fin").onclick = () => afterPage(pg);
   };
 
   const afterPage = pg => {
     const has = pg + 1 < pages;
+    putD(has ? { pg: pg + 1, ids: null, done: [], typed: {} } : null);
     mainHtml(`<div class="tw"><div class="card"><h2>${pg + 1}쪽 완료! 👏</h2>
       <p>${Math.min((pg + 1) * PAGE, sents.length)}문장을 입력했어요.</p>
       ${has ? `<p class="muted">더 연습하면 순위가 올라가요. 문장 연습은 선택이에요.</p><button class="btn" id="more">다른 문장 연습하기</button>`
@@ -385,7 +402,7 @@ async function typeStep(no) {
     if (has) $("#more").onclick = () => showPage(pg + 1);
     $("#quiz").onclick = () => quizStep(no);
   };
-  showPage(0);
+  const d0 = loadD(); showPage(d0 && d0.pg < pages ? d0.pg : 0, d0 && d0.pg < pages ? d0 : null);
 }
 
 async function quizStep(no) {
