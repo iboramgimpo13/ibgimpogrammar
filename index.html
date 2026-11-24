@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>아이보람 김포점 문법</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#D6EBFF">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="IBG Grammar">
 <style>
 :root{--okbg:#c9f7d4;--ink:#16233b;--bg:#f3f6fb;--card:#fff;--line:#d9e0ec;--acc:#2f6bff;--accT:#fff;--ok:#1f9d6b;--no:#d64550;--hl:#ffe58a;--mut:#667189}
 @media (prefers-color-scheme:dark){:root{--okbg:#1f5a3a;--ink:#e8edf7;--bg:#10141d;--card:#1a2130;--line:#2e384d;--acc:#6c93ff;--accT:#0c1220;--ok:#4fd1a0;--no:#ff7b84;--hl:#5b4a12;--mut:#9aa6bf}}
@@ -97,6 +104,12 @@ tr.off{opacity:.5}.act button{margin-right:4px;padding:4px 8px;border:1px solid 
 .rbtn{padding:12px 6px;border:1px solid var(--acc);border-radius:10px;background:var(--bg);font-weight:700;color:var(--acc)}
 .rbtn.done{background:#9aa0ab;border-color:#9aa0ab;color:#fff}
 .bar .ttl{cursor:pointer}
+.bar>span{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:6px}
+.bar .link{padding:6px 13px;border-radius:999px;border:1px solid var(--acc);background:var(--card);color:var(--acc);text-decoration:none;font-size:13px;font-weight:600;line-height:1.25;white-space:nowrap;cursor:pointer}
+.bar .link:hover{background:var(--acc);color:var(--accT)}
+.bar .link:last-child{border-color:var(--line);color:var(--mut)}
+.bar .link:last-child:hover{background:var(--line);color:var(--ink)}
+@media(max-width:560px){.bar{flex-wrap:wrap}.bar .link{padding:5px 10px;font-size:12px}}
 .gboard{display:none}
 @media (min-width:1025px) and (hover:hover) and (pointer:fine){.gboard{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0}body.intype .gboard{display:none}}
 @media (min-width:1540px) and (hover:hover) and (pointer:fine){.gboard{display:block;margin:0}.gboard .rk{position:fixed;top:72px;width:190px;max-height:calc(100vh - 90px);overflow:auto}
@@ -133,7 +146,7 @@ window.addEventListener("keydown", e => {
   }
 });
 
-const hdr = () => `<div class="bar"><b class="ttl" onclick="goHome()">${SITE}</b><span>${esc(me.name)} ${me.role === "admin" ? `<button class="link" onclick="examHome()">🖨 내신 시험지</button> ` : `<button class="link" onclick="notebook()">📒 My Grammar</button> <button class="link" onclick="examHome()">📝 내신 준비</button> `}<button class="link" onclick="logout()">나가기</button></span></div>`;
+const hdr = () => `<div class="bar"><b class="ttl" onclick="goHome()">${SITE}</b><span>${esc(me.name)} ${me.role === "admin" ? `<button class="link" onclick="examHome()">🖨 내신 시험지</button> ` : `<button class="link" onclick="notebook()">📒 My Grammar</button> <button class="link" onclick="examHome()">📝 내신 준비</button> `}<button class="link" onclick="logout()">로그아웃</button></span></div>`;
 function goHome() {
   if (me.role === "admin") { if (confirm("관리자 화면으로 이동할까요?")) adminView(); return; }
   if (confirm("문법 강의 화면으로 이동할까요?\n(진행 중인 강의로 이동해요)")) lessonView();
@@ -900,6 +913,7 @@ function exPaperView(i) {
   if (adm) $("#exkey").onchange = e => { const k = document.querySelector(".pk"); if (k) k.style.display = e.target.checked ? "" : "none"; };
 }
 
+if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
 init();
 </script>
 </body>
