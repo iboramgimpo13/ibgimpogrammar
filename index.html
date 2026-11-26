@@ -111,7 +111,14 @@ tr.off{opacity:.5}.act button{margin-right:4px;padding:4px 8px;border:1px solid 
 .bar .link:last-child:hover{background:var(--line);color:var(--ink)}
 @media(max-width:560px){.bar{flex-wrap:wrap}.bar .link{padding:5px 10px;font-size:12px}}
 .gboard{display:none}
-@media (min-width:1025px) and (hover:hover) and (pointer:fine){.gboard{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0}body.intype .gboard{display:none}}
+@media (min-width:1025px) and (hover:hover) and (pointer:fine){.gboard{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0}}
+/* 문장 입력 화면도 영상 화면과 같은 자리(좌우)에 순위표를 보여줘요 */
+.tw{display:block}.rkbox{display:none!important}
+/* 왼쪽 메뉴: 영상·문장·퀴즈 단계 버튼 */
+.sub{flex-direction:column;align-items:stretch;cursor:pointer}.sub .t1{display:flex;justify-content:space-between;gap:8px}
+.stps{display:flex;gap:4px;margin-top:5px}
+.stp{padding:2px 9px;font-size:12px;border:1px solid var(--acc);border-radius:999px;background:var(--card);color:var(--acc);font-weight:700}
+.stp.done{border-color:var(--line);background:var(--line);color:var(--mut);font-weight:400}
 @media (min-width:1540px) and (hover:hover) and (pointer:fine){.gboard{display:block;margin:0}.gboard .rk{position:fixed;top:72px;width:190px;max-height:calc(100vh - 90px);overflow:auto}
 .gboard .rk:nth-child(1){left:calc(50% - 754px)}.gboard .rk:nth-child(2){right:calc(50% - 754px)}}
 </style>
@@ -193,7 +200,30 @@ let prog = {}, openU = 0, cur = 0, tick = 0;
 const norm = s => String(s).trim().toLowerCase().replace(/\s+/g, "");
 const CH = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ";
 const cho = s => [...s.replace(/[A-Za-z]+/g, w => w[0] + "○".repeat(w.length - 1))].map(c => { const n = c.charCodeAt(0) - 44032; return n >= 0 && n < 11172 ? CH[n / 588 | 0] : c; }).join("");
-const mainHtml = h => { clearInterval(tick); document.body.classList.toggle("intype", h.includes('class="tw"')); $("#main").innerHTML = h; };
+const mainHtml = h => { clearInterval(tick); $("#main").innerHTML = h; };
+/* 단계 기록: steps[강번호] = { video, sentence, quiz } */
+let steps = {};
+const STP = [["video", "영상"], ["sentence", "문장"], ["quiz", "퀴즈"]];
+const allDone = no => STP.every(([k]) => steps[no] && steps[no][k]);
+async function markStep(no, k) {
+  steps[no] = steps[no] || {};
+  if (steps[no][k]) return;
+  steps[no][k] = true;
+  await sb.from("lesson_steps").upsert({ student_id: me.id, lesson_no: no, step: k }, { onConflict: "student_id,lesson_no,step", ignoreDuplicates: true });
+  if (allDone(no) && !prog[no]) {
+    need(await sb.rpc("save_progress", { p_lesson: no, p_step: "note" }));
+    need(await sb.rpc("save_progress", { p_lesson: no, p_step: "practice" }));
+    prog[no] = true;
+  }
+  drawSide();
+}
+/* 왼쪽 메뉴의 단계 버튼에서 바로 이동 */
+function openStep(e, no, k) {
+  e.stopPropagation();
+  if (k === "video") return go(no);
+  cur = no; openU = lessons.find(x => x.lesson_no == no).unit; drawSide();
+  k === "sentence" ? typeStep(no) : quizStep(no);
+}
 async function getQs(no, step) { return need(await sb.rpc("get_questions", { p_lesson: no, p_step: step })) || []; }
 
 function sideHtml() {
@@ -201,7 +231,9 @@ function sideHtml() {
   return Object.keys(by).map(u => {
     const a = by[u], d = a.filter(l => prog[l.lesson_no]).length;
     return `<button class="un" onclick="openU=${openU == u ? 0 : u};drawSide()"><span>${u}. ${UN[u - 1] || "단원"}</span><small>${Math.round(100 * d / a.length)}%</small></button>` +
-      (openU == u ? a.map(l => `<button class="sub ${l.lesson_no == cur ? "cur" : ""}" onclick="go(${l.lesson_no})"><span>${l.lesson_no}. ${esc(l.title)}</span>${prog[l.lesson_no] ? "<b>학습완료</b>" : ""}</button>`).join("") + (REVIEW.includes(+u) ? `<button class="sub rvb" onclick="reviewIntro(${u})"><span>📝 Review Test</span></button>` : "") : "");
+      (openU == u ? a.map(l => { const n = l.lesson_no, s = steps[n] || {};
+        return `<div class="sub ${n == cur ? "cur" : ""}" onclick="go(${n})"><div class="t1"><span>${n}. ${esc(l.title)}</span>${prog[n] ? "<b>학습완료</b>" : ""}</div>
+        <div class="stps">${STP.map(([k, t]) => `<button class="stp ${s[k] ? "done" : ""}" onclick="openStep(event,${n},'${k}')">${t}</button>`).join("")}</div></div>`; }).join("") + (REVIEW.includes(+u) ? `<button class="sub rvb" onclick="reviewIntro(${u})"><span>📝 Review Test</span></button>` : "") : "");
   }).join("");
 }
 let REVIEW = []; /* Review Test 문제가 있는 단원 (서버에서 자동으로 불러와요) */
@@ -212,6 +244,11 @@ async function lessonView() {
   try { const ru = await sb.rpc("get_review_units"); REVIEW = (ru.data || []).map(x => +x.unit); } catch (e) {}
   const r = await sb.from("progress").select("lesson_no,completed_at").eq("student_id", me.id);
   prog = {}; (r.data || []).forEach(p => { if (p.completed_at) prog[p.lesson_no] = true; });
+  steps = {};
+  const st = await sb.from("lesson_steps").select("lesson_no,step").eq("student_id", me.id);
+  (st.data || []).forEach(x => { (steps[x.lesson_no] = steps[x.lesson_no] || {})[x.step] = true; });
+  /* 예전에 학습완료한 강의는 세 단계 모두 완료로 표시 */
+  Object.keys(prog).forEach(n => { steps[n] = { video: true, sentence: true, quiz: true }; });
   const nx = lessons.find(l => !prog[l.lesson_no]) || lessons[0];
   if (!nx) return html(hdr() + `<div class="card">강의가 아직 없어요.</div>`);
   html(hdr() + `<div class="lay"><div class="side"></div><div id="main"></div></div><div class="gboard"></div>`);
@@ -236,7 +273,7 @@ function go(no) {
 
 async function noteStep(no) {
   const { data } = await sb.from("notes").select("body").eq("lesson_no", no).maybeSingle();
-  if (!data) return typeStep(no);
+  if (!data) { markStep(no, "video"); return typeStep(no); }
   const it = [];
   const body = data.body.split(/\{\{(.*?)\}\}/).map((t, k) => {
     if (k % 2 == 0) return esc(t).replace(/\n/g, "<br>");
@@ -251,7 +288,7 @@ async function noteStep(no) {
     el.oninput = () => {
       if (norm(el.value) !== norm(x.a)) return;
       x.ok = 1; el.classList.add("good"); el.disabled = true; $("#x" + i).textContent = ""; hs[i].hidden = true;
-      if (it.every(y => y.ok)) $("#nxt").disabled = false;
+      if (it.every(y => y.ok)) { $("#nxt").disabled = false; markStep(no, "video"); }
     };
   });
   hs.forEach(b => b.onclick = () => {
@@ -337,7 +374,7 @@ function scramble(ans) {
 
 async function typeStep(no) {
   const sents = need(await sb.rpc("get_sentences", { p_lesson: no })) || [];
-  if (!sents.length) return quizStep(no);
+  if (!sents.length) { markStep(no, "sentence"); return quizStep(no); }
   const PAGE = 20, pages = Math.ceil(sents.length / PAGE);
   await loadBoard();
 
@@ -354,8 +391,8 @@ async function typeStep(no) {
         <div class="mir" id="m${i}"></div>
         <input class="sin" id="in${i}" placeholder="여기에 입력하세요" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">
         <span class="tick">✔</span></div>`).join("")}
-      <div class="row2"><button class="btn ghost" id="sv">💾 임시저장</button><button class="btn" id="fin" disabled>다 했어요</button></div></div>
-      <div class="rkbox">${rkHtml()}</div></div>`);
+      <div class="row2"><button class="btn ghost" id="sv">💾 임시저장</button><button class="btn" id="fin" disabled>제출하기</button></div></div></div>`);
+    gbRefresh(false);
     const saveD = () => {
       const dn = [], ty = {};
       items.forEach((x, i) => { const inp = $("#in" + i); if (!inp) return; if ($("#r" + i).classList.contains("ok")) dn.push(x.id); else if (inp.value) ty[x.id] = inp.value; });
@@ -399,19 +436,23 @@ async function typeStep(no) {
       else if (d && d.typed && d.typed[x.id]) { inp.value = d.typed[x.id]; inp.oninput(); }
     });
     const fi = [...document.querySelectorAll(".sin")].find(e => !e.disabled); if (fi) fi.focus();
-    $("#sv").onclick = () => { saveD(); const b = $("#sv"); b.textContent = "✔ 저장됐어요"; setTimeout(() => { if ($("#sv")) $("#sv").textContent = "💾 임시저장"; }, 1800); };
+    $("#sv").onclick = () => {
+      saveD();
+      if (confirm("임시저장했어요. 퀴즈 화면으로 이동할까요?\n(문장은 나중에 이어서 입력할 수 있어요)")) return quizStep(no);
+      const b = $("#sv"); b.textContent = "✔ 저장됐어요"; setTimeout(() => { if ($("#sv")) $("#sv").textContent = "💾 임시저장"; }, 1800);
+    };
     $("#fin").onclick = () => afterPage(pg);
   };
 
   const afterPage = pg => {
     const has = pg + 1 < pages;
+    markStep(no, "sentence");
     putD(has ? { pg: pg + 1, ids: null, done: [], typed: {} } : null);
     mainHtml(`<div class="tw"><div class="card"><h2>${pg + 1}쪽 완료! 👏</h2>
       <p>${Math.min((pg + 1) * PAGE, sents.length)}문장을 입력했어요.</p>
       ${has ? `<p class="muted">더 연습하면 순위가 올라가요. 문장 연습은 선택이에요.</p><button class="btn" id="more">다른 문장 연습하기</button>`
             : `<p class="ok">${sents.length}문장을 모두 입력했어요! 정말 대단해요 🎉</p>`}
-      <button class="btn ${has ? "ghost" : ""}" id="quiz">문제 풀러 가기</button></div>
-      <div class="rkbox">${rkHtml()}</div></div>`);
+      <button class="btn ${has ? "ghost" : ""}" id="quiz">문제 풀러 가기</button></div></div>`);
     if (has) $("#more").onclick = () => showPage(pg + 1);
     $("#quiz").onclick = () => quizStep(no);
   };
@@ -450,11 +491,17 @@ async function quizStep(no) {
 }
 
 async function finish(no, right, n) {
-  need(await sb.rpc("save_progress", { p_lesson: no, p_step: "note" }));
-  need(await sb.rpc("save_progress", { p_lesson: no, p_step: "practice" }));
-  prog[no] = true; gbRefresh(true);
+  await markStep(no, "quiz"); gbRefresh(true);
+  const score = n ? `<p>퀴즈 ${n}문제 중 <b>${right}</b>개 맞았어요.</p>` : "";
+  if (!allDone(no)) {
+    /* 아직 남은 단계가 있으면 그 단계로 안내 */
+    const left = STP.filter(([k]) => !steps[no][k]);
+    mainHtml(`<div class="card"><h2>퀴즈 완료! 👍</h2>${score}<p class="muted">학습완료까지 남은 단계: <b>${left.map(x => x[1]).join(", ")}</b></p>
+      ${left.map(([k, t]) => `<button class="btn" onclick="openStep(event,${no},'${k}')">${t} 하러 가기</button>`).join("")}</div>`);
+    return window.scrollTo(0, 0);
+  }
   const nx = lessons.find(l => l.lesson_no > no);
-  const card = `<div class="card"><h2>🎉 학습완료!</h2>${n ? `<p>퀴즈 ${n}문제 중 <b>${right}</b>개 맞았어요.</p>` : ""}${nx ? `<p class="muted">다음 강의 영상이 준비됐어요.</p>` : `<p class="ok">마지막 강의까지 모두 마쳤어요!</p>`}</div>`;
+  const card = `<div class="card"><h2>🎉 학습완료!</h2>${score}${nx ? `<p class="muted">다음 강의 영상이 준비됐어요.</p>` : `<p class="ok">마지막 강의까지 모두 마쳤어요!</p>`}</div>`;
   if (nx) { cur = nx.lesson_no; openU = nx.unit; drawSide(); mainHtml(card + vid(nx)); wire(nx.lesson_no); }
   else { drawSide(); mainHtml(card); }
   window.scrollTo(0, 0);
@@ -792,6 +839,8 @@ async function bkSave() {
   const info = $("#bkinfo"), go = $("#bkgo"), t = TB.find(x => x.id == bk.tb);
   if (!bk.rows || !confirm(`${t.label} ${bk.grade}학년에 ${bk.rows.length}문항을 등록할까요?\n(같은 단원·회차·번호 문제는 덮어써요)`)) return;
   go.disabled = true;
+  const { data: ss } = await sb.auth.refreshSession();
+  if (!ss?.session) { info.textContent = "로그인이 만료됐어요. 로그아웃 후 다시 로그인해 주세요."; go.disabled = false; return; }
   const data = bk.rows.map(r => ({ ...r, textbook_id: bk.tb, grade: bk.grade }));
   for (let i = 0; i < data.length; i += 50) {
     info.textContent = `등록 중… ${Math.min(i + 50, data.length)} / ${data.length}`;
